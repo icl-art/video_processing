@@ -2,6 +2,7 @@ import numpy as np
 import cv2 as cv
 import os
 import glob
+from resolution.image_super_resolution import predict
 
 MSE_THRESH = 10
 LEADING_ZEROS = 5
@@ -39,3 +40,5 @@ def split_video(filepath: str):
 
 if __name__ == "__main__":
     split_video("TreesIn.mp4")
+    image = cv.imread("output/00000.jpeg")
+    cv.imwrite("frame0.jpg", predict(image))

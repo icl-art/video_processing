@@ -12,12 +12,13 @@ import sys
 sys.path.append('..')
 
 #Set model - One of [noise-cancel, psnr-small, psnr-large]
+#There's also a 'gan' model based off ESRGAN. Import RRDN to use it
 model_name = "noise-cancel" #this seems to work the best
 model = RDN(weights=model_name)
 
 
 #Upscales an image 2^scale times
-def predict(array, scale):
+def predict(array, scale=1):
     pred = model.predict(array)
     for i in range(scale-1):
         pred = model.predict(np.array(pred))
