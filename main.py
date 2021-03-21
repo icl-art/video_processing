@@ -1,0 +1,41 @@
+import numpy as np
+import cv2 as cv
+import os
+import glob
+
+MSE_THRESH = 10
+LEADING_ZEROS = 5
+FORMAT_STRING = "{:05d}"
+MAX_FRAMES = 10**LEADING_ZEROS
+DOWNSCALE = 2
+
+
+def split_video(filepath: str):
+    files = glob.glob('output/*')
+    for f in files:
+        os.remove(f)
+
+    cap = cv.VideoCapture(filepath)
+
+    prev = None
+    curr = None
+    i = 0
+    mse = 100
+    while cap.isOpened():
+        ret, curr = cap.read()
+        # if frame is read correctly ret is True
+        if not ret:
+            break
+
+        if prev is not None:
+            mse = (np.square(curr - prev)).mean(axis=None)
+        if mse > MSE_THRESH:
+            new_size = (curr.shape[1]//DOWNSCALE, curr.shape[0]//DOWNSCALE)
+            resized = cv.resize(curr, new_size)
+            cv.imwrite("output/"+FORMAT_STRING.format(i)+".jpeg", resized)
+        prev = curr
+        i += 1
+    cap.release()
+
+if __name__ == "__main__":
+    split_video("TreesIn.mp4")

@@ -7,35 +7,18 @@ then merge them back into a video
 
 import numpy as np
 from PIL import Image
-from ISR.models import RDN, RRDN
+from ISR.models import RDN
 import sys
 sys.path.append('..')
 
-#Set model - One of [noise-cancel, gans, psnr-small, psnr-large]
-model_name = "noise-cancel"
+#Set model - One of [noise-cancel, psnr-small, psnr-large]
+model_name = "noise-cancel" #this seems to work the best
 model = RDN(weights=model_name)
 
-def split_video(filepath: str):
-    ...
 
-# import cv2
-# vidcap = cv2.VideoCapture('input.avi')
-# success,image = vidcap.read()
-# count = 0
-# while success:
-#     cv2.imwrite("output/frame%d.jpg" % count, image)     # save frame as JPEG file      
-#     success,image = vidcap.read()
-#     print('Read a new frame: ', success)
-#     count += 1
-
-
-def predict(img):
-    sr_img = model.predict(np.array(img))
-    return Image.fromarray(sr_img)
-
-image = Image.open("./input/frame0.jpg")
-output = predict(image)
-output.save("frame0.jpg")
-
-def stitch_video(savepath: str):
-    ...
+#Upscales an image 2^scale times
+def predict(array, scale):
+    pred = model.predict(array)
+    for i in range(scale-1):
+        pred = model.predict(np.array(pred))
+    return pred
