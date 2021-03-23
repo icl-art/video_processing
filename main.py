@@ -2,11 +2,10 @@ import numpy as np
 import cv2 as cv
 import os
 import glob
+from stage import *
+from progress.counter import Counter
 from resolution.image_super_resolution import predict
 from interpolation.interpolate import interpolate_imgs
-from progress.bar import Bar
-from progress.counter import Counter
-import timeit
 
 MSE_THRESH = 10
 LEADING_ZEROS = 5
@@ -15,8 +14,8 @@ MAX_FRAMES = 10**LEADING_ZEROS
 DOWNSCALE = 2
 
 
-def split_video(filepath: str):
-    files = glob.glob('split/*')
+def split_video(filepath: str, output_dir: str, metadata):
+    files = glob.glob(filepath+'/*')
     for f in files:
         os.remove(f)
 
@@ -38,51 +37,52 @@ def split_video(filepath: str):
         if mse > MSE_THRESH:
             new_size = (curr.shape[1]//DOWNSCALE, curr.shape[0]//DOWNSCALE)
             resized = cv.resize(curr, new_size)
-            cv.imwrite("split/"+FORMAT_STRING.format(i), resized)
+            cv.imwrite(output_dir+FORMAT_STRING.format(i), resized)
         prev = curr
         i += 1
         counter.next()
     cap.release()
+    yield
 
-if __name__ == "__main__":
-    start = timeit.default_timer()
-    #Split video and downscale images
-    split_video("TreesIn.mp4")
-    
-    split_files = os.listdir("split")
-    #Upscale images
-    print()
-    upscaling = Bar("Upscaling ", max=len(split_files))
-    for filename in split_files:
-        img = cv.imread("split/"+filename)
-        cv.imwrite("split/"+filename, predict(img))
-        upscaling.next()
+def upscale(input_dir: str, output_dir: str, metadata):
+    files = os.listdir(input_dir)
+    for filename in files:
+        img = cv.imread(filename)
+        cv.imwrite(output_dir+filename, predict(img))
+        yield
 
-    #Interpolate dropped frames
-    prev = split_files[0]
+def remove_cut(input_dir: str, output_dir: str, metadata):
+    files = os.listdir(input_dir)
+    prev = files[0]
+    for filename in files[1:]:
+        interpolate_imgs(prev, filename)
+        yield
+
+def recombine(input_dir: str, output_dir: str, metadata):
+    split_files = glob.glob(input_dir+'/*.jpeg')
     print()
-    interpolating = Bar("Interpolating ", max=len(split_files)-1)
-    for filename in split_files[1:]:
-        interpolate_imgs("split/"+prev, "split/"+filename)
-        interpolating.next()
-    
-    #Recombine into video
-    split_files = glob.glob('split/*.jpeg')
-    print()
-    recombining = Bar("Recombining ", max=len(split_files))
     img_array = []
     for filename in split_files:
         img = cv.imread(filename)
-        height, width, layers = img.shape
+        height, width, _ = img.shape
         size = (width,height)
         img_array.append(img)
-        recombining.next()
+        yield
 
-
-    out = cv.VideoWriter('project.mp4',cv.VideoWriter_fourcc(*'DIVX'), 15, size)
+    out = cv.VideoWriter('output_dir/project.mp4',cv.VideoWriter_fourcc(*'DIVX'), 15, size)
     
     for i in range(len(img_array)):
         out.write(img_array[i])
     out.release()
-    end = timeit.default_timer()
-    print(end-start)
+
+if __name__ == "__main__":
+    #WARNING: this stage assumes that the input directory only has 1 video.
+    #multiple videos will be combined - which may look strange
+    split_stage = file_stage("Split", "split/", split_video)
+    upscale_stage = stage("Upscale", "upscale/", upscale)
+    remove_cut_stage = stage("Remove Cuts", "output/", remove_cut)
+    recombine_stage = stage("Recombine", "video/", recombine)
+
+    pipe = pipeline("input.mp4", [split_stage, upscale_stage, remove_cut_stage, recombine_stage])
+    output_dir = pipe.execute(True, True)
+
