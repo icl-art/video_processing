@@ -1,21 +1,32 @@
 from typing import List
+from progress.bar import Bar
 import warnings
 import timeit
+import os
 
 #Stage represents a stage in the video pipeline
 class stage:
-    def __init__(self, name, output_dir, function, **metadata):
+    def __init__(self, name, output_dir, function, show_progress: bool, **metadata):
         self.name = name
         self.output_dir = output_dir
         self.function = function
         self.metadata = metadata
+        if show_progress:
+            self.progress_indicator = Bar(name)
+        else:
+            self.progress_indicator = None
 
     def set_input_dir(self, input_dir: str) -> None:
         self.input_dir = input_dir
+        if self.progress_indicator != None:
+            self.progress_indicator.max = len(os.listdir(input_dir))
 
     def execute(self):
-        self.function(self.input_dir, self.output_dir, self.metadata)
-
+        files = os.listdir(self.input_dir)
+        for file in files:
+            self.function(file, self.output_dir, self.metadata)
+            if self.progress_indicator != None:
+                self.progress_indicator.next()
 class pipeline:
     #Connect all stages
     def __init__(self, input_dir: str, stages: List[stage]):
